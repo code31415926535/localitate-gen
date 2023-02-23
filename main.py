@@ -1,13 +1,17 @@
+import random
 from typing import List
 import torch
 import torch.nn.functional as F
 import utils
 
 class Model:
-  block_size = 3
-  batch_size = 32
-  embedding_size = 2
-  layer_one_size = 100
+  block_size = 4
+  batch_size = 64
+  embedding_size = 10
+  layer_one_size = 350
+  learning_rate = 0.12
+  learning_rate_decay_after = 30000
+  training_iterations = 75000
 
   def __init__(self, stoi: dict, itos: dict):
     self.stoi = stoi
@@ -16,22 +20,47 @@ class Model:
     print('Block size:', self.block_size)
     print('Embedding size:', self.embedding_size)
     print('Layer one size:', self.layer_one_size)
+    print('Learning rate:', self.learning_rate)
+    print('Learning rate decay:', self.learning_rate_decay_after)
+    print('Training iterations:', self.training_iterations)
     self._setup_hidden_layer()
 
   def train(self, data):
-    X, Y = self._generate_training_data(data)
-    print('Training data size:', X.shape[0])
+    (Xtrain, Ytrain), (Xdev, Ydev) = self._generate_training_data(data)
+    print('Training data size:', Xtrain.shape[0])
     for p in self.parameters():
       p.requires_grad = True
-    for i in range(5000):
+    lr = self.learning_rate
+    for i in range(self.training_iterations):
       # Minibatch
-      ix = torch.randint(0, X.shape[0], (self.batch_size,))
-      loss = self._forward_pass(X[ix], Y[ix])
-      self._backward_pass(loss)
-      # Peroidically evaluate loss
-      if (i % 100) == 0:
-        loss = self._forward_pass(X, Y)
-        print('Loss:', loss.item())
+      ix = torch.randint(0, Xtrain.shape[0], (self.batch_size,))
+      loss = self._forward_pass(Xtrain[ix], Ytrain[ix])
+      self._backward_pass(loss, lr)
+      if (i % 5000) == 0:
+        with torch.no_grad():
+          devLoss = self._forward_pass(Xdev, Ydev)
+          trainLoss = self._forward_pass(Xtrain, Ytrain)
+          print(f'Dev loss {devLoss.item():.2f}, train loss {trainLoss.item():.2f}')
+      if (i % self.learning_rate_decay_after) == 0 and (i > 0):
+        lr /= 10
+        print('Learning rate decayed to', lr)
+
+  def sample(self, context: List[str] = [0] * block_size):
+    out = []
+    context = [0] * self.block_size
+    for _ in range(100):
+      emb = self.C[torch.tensor([context])]
+      flat_emb = emb.view(-1, self.block_size * self.embedding_size)
+      h = torch.tanh(flat_emb @ self.W1 + self.B1)
+      logits = h @ self.W2 + self.B2
+      probs = F.softmax(logits, dim=1)
+      ix = torch.multinomial(probs, 1)
+      ch = self.itos[ix.item()]
+      if ch == '#':
+        break
+      out.append(ch)
+      context = context[1:] + [ix]
+    return ''.join(out)
 
   def _forward_pass(self, dataset: List[str] = [], targets: List[str] = []):
     emb = self.C[dataset]
@@ -41,14 +70,21 @@ class Model:
     loss = F.cross_entropy(logits, targets)
     return loss
   
-  def _backward_pass(self, loss):
+  def _backward_pass(self, loss, lr):
     for p in self.parameters():
       p.grad = None
     loss.backward()
     for p in self.parameters():
-      p.data -= 0.1 * p.grad
+      p.data -= lr * p.grad
 
   def _generate_training_data(self, data: List[str]):
+    random.shuffle(data)
+    splitTrain = int(len(data) * 0.9)
+    train = self._generate_split(data[:splitTrain])
+    dev = self._generate_split(data[splitTrain:])
+    return train, dev
+
+  def _generate_split(self, data: List[str]):
     X = []
     Y = []
     for w in data:
@@ -61,10 +97,11 @@ class Model:
         context = context[1:] + [ix]
     X = torch.tensor(X)
     Y = torch.tensor(Y)
-    return X, Y
+    return (X, Y)
 
   def _setup_hidden_layer(self):
     g = torch.Generator().manual_seed(42)
+    random.seed(42)
     self.C = torch.randn(len(self.stoi), self.embedding_size, generator=g)
     self.W1 = torch.randn((self.block_size * self.embedding_size, self.layer_one_size), generator=g)
     self.B1 = torch.randn(self.layer_one_size, generator=g)  
@@ -83,3 +120,6 @@ if __name__ == '__main__':
   itos = {i: char for char, i in stoi.items()}
   model = Model(stoi, itos)
   model.train(data)
+  # for _ in range(20):
+  #   result = model.sample()
+  #   print(result)
