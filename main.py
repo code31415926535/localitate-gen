@@ -5,6 +5,7 @@ import utils
 
 class Model:
   block_size = 3
+  batch_size = 32
   embedding_size = 2
   layer_one_size = 100
 
@@ -19,12 +20,33 @@ class Model:
 
   def train(self, data):
     X, Y = self._generate_training_data(data)
-    emb = self.C[X]
+    print('Training data size:', X.shape[0])
+    for p in self.parameters():
+      p.requires_grad = True
+    for i in range(5000):
+      # Minibatch
+      ix = torch.randint(0, X.shape[0], (self.batch_size,))
+      loss = self._forward_pass(X[ix], Y[ix])
+      self._backward_pass(loss)
+      # Peroidically evaluate loss
+      if (i % 100) == 0:
+        loss = self._forward_pass(X, Y)
+        print('Loss:', loss.item())
+
+  def _forward_pass(self, dataset: List[str] = [], targets: List[str] = []):
+    emb = self.C[dataset]
     flat_emb = emb.view(-1, self.block_size * self.embedding_size)
     h = torch.tanh(flat_emb @ self.W1 + self.B1)
     logits = h @ self.W2 + self.B2
-    loss = F.cross_entropy(logits, Y)
-    print(loss)
+    loss = F.cross_entropy(logits, targets)
+    return loss
+  
+  def _backward_pass(self, loss):
+    for p in self.parameters():
+      p.grad = None
+    loss.backward()
+    for p in self.parameters():
+      p.data -= 0.1 * p.grad
 
   def _generate_training_data(self, data: List[str]):
     X = []
@@ -60,4 +82,4 @@ if __name__ == '__main__':
   stoi['#'] = 0
   itos = {i: char for char, i in stoi.items()}
   model = Model(stoi, itos)
-  model.train(data[:10])
+  model.train(data)
