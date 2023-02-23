@@ -13,21 +13,22 @@ class Model:
   learning_rate_decay_after = 30000
   training_iterations = 75000
 
-  def __init__(self, stoi: dict, itos: dict):
-    self.stoi = stoi
-    self.itos = itos
-    print('Vocab size:', len(stoi))
+  def __init__(self, load=False):
     print('Block size:', self.block_size)
     print('Embedding size:', self.embedding_size)
     print('Layer one size:', self.layer_one_size)
     print('Learning rate:', self.learning_rate)
     print('Learning rate decay:', self.learning_rate_decay_after)
     print('Training iterations:', self.training_iterations)
-    self._setup_hidden_layer()
+    if load:
+      self.load_model()
 
-  def train(self, data):
+  def train(self, data, save=False):
+    self._generate_vocab(data)
+    self._setup_hidden_layer()
     (Xtrain, Ytrain), (Xdev, Ydev) = self._generate_training_data(data)
     print('Training data size:', Xtrain.shape[0])
+    print('Vocab size:', len(self.stoi))
     for p in self.parameters():
       p.requires_grad = True
     lr = self.learning_rate
@@ -44,6 +45,9 @@ class Model:
       if (i % self.learning_rate_decay_after) == 0 and (i > 0):
         lr /= 10
         print('Learning rate decayed to', lr)
+
+    if save:
+      self.save_model()
 
   def sample(self, context: List[str] = [0] * block_size):
     out = []
@@ -93,15 +97,19 @@ class Model:
         ix = self.stoi[ch]
         X.append(context)
         Y.append(ix)
-        # print(''.join([self.itos[i] for i in context]), '->', self.itos[ix])
         context = context[1:] + [ix]
     X = torch.tensor(X)
     Y = torch.tensor(Y)
     return (X, Y)
 
+  def _generate_vocab(self, data):
+    chars = utils.get_chars(data)
+    self.stoi = {char: i+1 for i, char in enumerate(chars)}
+    self.stoi['#'] = 0
+    self.itos = {i: char for char, i in self.stoi.items()}
+
   def _setup_hidden_layer(self):
-    g = torch.Generator().manual_seed(42)
-    random.seed(42)
+    g = torch.Generator()
     self.C = torch.randn(len(self.stoi), self.embedding_size, generator=g)
     self.W1 = torch.randn((self.block_size * self.embedding_size, self.layer_one_size), generator=g)
     self.B1 = torch.randn(self.layer_one_size, generator=g)  
@@ -109,17 +117,35 @@ class Model:
     self.B2 = torch.randn(len(self.stoi), generator=g)
     print('Paramters:', sum(p.numel() for p in self.parameters()))
 
+  def load_model(self):
+    self.C, self.W1, self.B1, self.W2, self.B2 = torch.load('model.pt')
+    with open('vocab.txt') as f:
+      self.stoi = {}
+      self.itos = {}
+      for i, line in enumerate(f):
+        char = line.split('\n')[0]
+        self.stoi[char] = i
+        self.itos[i] = char
+
+  def save_model(self):
+    torch.save(self.parameters(), 'model.pt')
+    with open('vocab.txt', 'w') as f:
+      for i in range(len(self.stoi)):
+        f.write(f'{self.itos[i]}\n')
+
   def parameters(self):
     return [self.C, self.W1, self.B1, self.W2, self.B2]
 
-if __name__ == '__main__':
+def train():
   data = utils.read_csv()
-  chars = utils.get_chars(data)
-  stoi = {char: i+1 for i, char in enumerate(chars)}
-  stoi['#'] = 0
-  itos = {i: char for char, i in stoi.items()}
-  model = Model(stoi, itos)
-  model.train(data)
-  # for _ in range(20):
-  #   result = model.sample()
-  #   print(result)
+  model = Model()
+  model.train(data, save=True)
+
+def sample():
+  model = Model(load=True)
+  for _ in range(20):
+    result = model.sample()
+    print(result)
+
+if __name__ == '__main__':
+  sample()
