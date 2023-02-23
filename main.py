@@ -1,4 +1,5 @@
 import random
+import argparse
 from typing import List
 import torch
 import torch.nn.functional as F
@@ -49,9 +50,13 @@ class Model:
     if save:
       self.save_model()
 
-  def sample(self, context: List[str] = [0] * block_size):
+  def sample(self, prefix: str = ''):
     out = []
     context = [0] * self.block_size
+    for ch in prefix:
+      ix = self.stoi[ch]
+      out.append(ch)
+      context = context[1:] + [ix]
     for _ in range(100):
       emb = self.C[torch.tensor([context])]
       flat_emb = emb.view(-1, self.block_size * self.embedding_size)
@@ -141,11 +146,20 @@ def train():
   model = Model()
   model.train(data, save=True)
 
-def sample():
+def sample(prefix: str, count: int):
   model = Model(load=True)
-  for _ in range(20):
-    result = model.sample()
+  for _ in range(count):
+    result = model.sample(prefix)
     print(result)
 
 if __name__ == '__main__':
-  sample()
+  argparse = argparse.ArgumentParser()
+  argparse.add_argument('--train', action='store_true')
+  argparse.add_argument('--sample', action='store_true')
+  argparse.add_argument('--prefix', type=str, default='')
+  argparse.add_argument('--count', type=int, default=20)
+  args = argparse.parse_args()
+  if args.train:
+    train()
+  if args.sample:
+    sample(args.prefix, args.count)
