@@ -131,7 +131,7 @@ class Model:
   def _setup_hidden_layer(self):
     g = torch.Generator().manual_seed(42)
     self.C = torch.randn(len(self.stoi), self.embedding_size, generator=g)
-    self.W1 = torch.randn((self.block_size * self.embedding_size, self.layer_one_size), generator=g) * 0.01
+    self.W1 = torch.randn((self.block_size * self.embedding_size, self.layer_one_size), generator=g) * (5/3)/(self.block_size * self.embedding_size)**0.5
     self.B1 = torch.randn(self.layer_one_size, generator=g) * 0.01
     self.W2 = torch.randn((self.layer_one_size, len(self.stoi)), generator=g) * 0.01
     self.B2 = torch.randn(len(self.stoi), generator=g) * 0
