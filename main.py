@@ -3,6 +3,7 @@ import argparse
 from typing import List
 import torch
 import torch.nn.functional as F
+from matplotlib import pyplot as plt
 import utils
 
 class Model:
@@ -12,10 +13,11 @@ class Model:
   layer_one_size = 350
   learning_rate = 0.12
   learning_rate_decay_after = 30000
-  training_iterations = 75000
+  training_iterations = 65000
 
   def __init__(self, load=False):
     print('Block size:', self.block_size)
+    print('Batch size:', self.batch_size)
     print('Embedding size:', self.embedding_size)
     print('Layer one size:', self.layer_one_size)
     print('Learning rate:', self.learning_rate)
@@ -24,9 +26,13 @@ class Model:
     if load:
       self.load_model()
 
+  # TODO: clean this up a bit
   def train(self, data, save=False):
     self._generate_vocab(data)
     self._setup_hidden_layer()
+    iterations = []
+    devLosses = []
+    trainLosses = []
     (Xtrain, Ytrain), (Xdev, Ydev) = self._generate_training_data(data)
     print('Training data size:', Xtrain.shape[0])
     print('Vocab size:', len(self.stoi))
@@ -38,17 +44,26 @@ class Model:
       ix = torch.randint(0, Xtrain.shape[0], (self.batch_size,))
       loss = self._forward_pass(Xtrain[ix], Ytrain[ix])
       self._backward_pass(loss, lr)
-      if (i % 5000) == 0:
+      if (i % 1000) == 0:
         with torch.no_grad():
           devLoss = self._forward_pass(Xdev, Ydev)
           trainLoss = self._forward_pass(Xtrain, Ytrain)
-          print(f'Dev loss {devLoss.item():.2f}, train loss {trainLoss.item():.2f}')
+          iterations.append(i)
+          devLosses.append(devLoss.item())
+          trainLosses.append(trainLoss.item())
+          print(f'Dev loss {devLoss.item():.3f}, train loss {trainLoss.item():.3f}')
       if (i % self.learning_rate_decay_after) == 0 and (i > 0):
         lr /= 10
         print('Learning rate decayed to', lr)
 
     if save:
       self.save_model()
+
+    return {
+      'iterations': iterations, 
+      'devLosses': devLosses, 
+      'trainLosses': trainLosses,
+    }
 
   def sample(self, prefix: str = ''):
     out = []
@@ -114,12 +129,12 @@ class Model:
     self.itos = {i: char for char, i in self.stoi.items()}
 
   def _setup_hidden_layer(self):
-    g = torch.Generator()
+    g = torch.Generator().manual_seed(42)
     self.C = torch.randn(len(self.stoi), self.embedding_size, generator=g)
-    self.W1 = torch.randn((self.block_size * self.embedding_size, self.layer_one_size), generator=g)
-    self.B1 = torch.randn(self.layer_one_size, generator=g)  
-    self.W2 = torch.randn((self.layer_one_size, len(self.stoi)), generator=g)
-    self.B2 = torch.randn(len(self.stoi), generator=g)
+    self.W1 = torch.randn((self.block_size * self.embedding_size, self.layer_one_size), generator=g) * 0.01
+    self.B1 = torch.randn(self.layer_one_size, generator=g) * 0.01
+    self.W2 = torch.randn((self.layer_one_size, len(self.stoi)), generator=g) * 0.01
+    self.B2 = torch.randn(len(self.stoi), generator=g) * 0
     print('Paramters:', sum(p.numel() for p in self.parameters()))
 
   def load_model(self):
@@ -141,10 +156,14 @@ class Model:
   def parameters(self):
     return [self.C, self.W1, self.B1, self.W2, self.B2]
 
-def train():
+def train(plot=False):
   data = utils.read_csv()
   model = Model()
-  model.train(data, save=True)
+  result = model.train(data, save=True)
+  if plot:
+    plt.plot(result['iterations'], result['devLosses'], label='dev')
+    plt.plot(result['iterations'], result['trainLosses'], label='train')
+    plt.show()
 
 def sample(prefix: str, count: int):
   model = Model(load=True)
@@ -155,11 +174,12 @@ def sample(prefix: str, count: int):
 if __name__ == '__main__':
   argparse = argparse.ArgumentParser()
   argparse.add_argument('--train', action='store_true')
+  argparse.add_argument('--plot', action='store_true')
   argparse.add_argument('--sample', action='store_true')
   argparse.add_argument('--prefix', type=str, default='')
   argparse.add_argument('--count', type=int, default=20)
   args = argparse.parse_args()
   if args.train:
-    train()
+    train(args.plot)
   if args.sample:
     sample(args.prefix, args.count)
