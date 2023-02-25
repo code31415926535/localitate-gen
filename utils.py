@@ -8,6 +8,13 @@ def read_csv():
             rows.append(row)
     return list(map(lambda x: x[2].lower(), rows[1:]))
 
+def read_magyarorszag():
+    rows = []
+    with open('telepules.txt', 'r') as file:
+        for row in file:
+            rows.append(row.split('\t')[1].lower())
+    return list(set(rows))
+
 def get_chars(rows):
     return sorted(list(set(''.join(rows))))
 

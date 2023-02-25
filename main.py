@@ -4,6 +4,7 @@ from matplotlib import pyplot as plt
 import utils
 
 def train(plot=False):
+  # data = utils.read_magyarorszag()
   data = utils.read_csv()
   model = MLP()
   model.train(data, save=True)
