@@ -73,6 +73,7 @@ class MLP:
         'trainLosses': self.trainLosses,
       },
       'embedding': self.C.tolist(),
+      'vocab': self.stoi,
     }
 
   def sample(self, prefix: str = ''):

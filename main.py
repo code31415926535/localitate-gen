@@ -1,6 +1,6 @@
 import argparse
 from mlp import MLP
-from matplotlib import pyplot as plt
+from plots import plot_stats
 import utils
 
 def train(plot=False):
@@ -9,11 +9,8 @@ def train(plot=False):
   model = MLP()
   model.train(data, save=True)
   stats = model.stats()
-  training = stats['training']
   if plot:
-    plt.plot(training['iterations'], training['devLosses'], label='dev')
-    plt.plot(training['iterations'], training['trainLosses'], label='train')
-    plt.show()
+    plot_stats(stats)
 
 def sample(prefix: str, count: int):
   model = MLP(load=True)
@@ -21,15 +18,27 @@ def sample(prefix: str, count: int):
     result = model.sample(prefix)
     print(result)
 
+def stats():
+  stats = utils.read_stats()
+  plot_stats(stats)
+
 if __name__ == '__main__':
   argparse = argparse.ArgumentParser()
-  argparse.add_argument('--train', action='store_true')
-  argparse.add_argument('--plot', action='store_true')
-  argparse.add_argument('--sample', action='store_true')
-  argparse.add_argument('--prefix', type=str, default='')
-  argparse.add_argument('--count', type=int, default=20)
+  subparsers = argparse.add_subparsers(dest='subparser_name')
+
+  train_parser = subparsers.add_parser('train', help='train the model')
+  train_parser.add_argument('--plot', action='store_true')
+
+  sample_parser = subparsers.add_parser('sample', help='sample from the model')
+  sample_parser.add_argument('--prefix', type=str, default='')
+  sample_parser.add_argument('--count', type=int, default=20)
+
+  stats_parser = subparsers.add_parser('stats', help='show training stats')
+
   args = argparse.parse_args()
-  if args.train:
+  if args.subparser_name == 'train':
     train(args.plot)
-  if args.sample:
+  if args.subparser_name == 'sample':
     sample(args.prefix, args.count)
+  if args.subparser_name == 'stats':
+    stats()

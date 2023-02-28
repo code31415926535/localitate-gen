@@ -1,4 +1,5 @@
 import csv
+import json
 
 def read_csv():
     rows = []
@@ -14,6 +15,10 @@ def read_magyarorszag():
         for row in file:
             rows.append(row.split('\t')[1].lower())
     return list(set(rows))
+
+def read_stats():
+    with open('stats.json', 'r') as file:
+        return json.load(file)
 
 def get_chars(rows):
     return sorted(list(set(''.join(rows))))
