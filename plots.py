@@ -1,3 +1,4 @@
+import random
 from matplotlib import pyplot as plt
 from matplotlib.widgets import TextBox
 
@@ -12,31 +13,38 @@ def plot_learning_rate(stats: dict, ax):
 
 def plot_embedding(stats: dict, ax):
     embedding = stats['embedding']
-    flat_embedding = [item for sublist in embedding for item in sublist]
-    mn, mx = min(flat_embedding), max(flat_embedding)
     ax.set_title('Embedding')
     ax.set_ylabel('letter')
     ax.set_xlabel('embedding dimension')
-    ax.imshow(embedding, cmap='hot', vmin=mn, vmax=mx, interpolation='nearest')
+    vocabInOrder = [x[0] for x in sorted(stats['vocab'].items(), key=lambda item: item[1])]
+    ax.set_yticks(range(len(embedding)), labels=vocabInOrder)
+    ax.set_xticks(range(len(embedding[0])))
+    ax.imshow(embedding, interpolation='nearest')
 
-def plot_scatter_embedding(stats: dict, ax):
+def plot_selected(stats: dict, ax, selected = [], title = ''):
     embedding = stats['embedding']
-    ax.set_title('Embedding')
-    firstDim = 1
-    secondDim = 2
-    ax.set_ylabel(f'embedding dimension {secondDim}')
-    ax.set_xlabel(f'embedding dimension {firstDim}')
-    dimOne = [x[firstDim] for x in embedding]
-    dimTwo = [x[secondDim] for x in embedding]
-    vocab = stats['vocab']
-    ax.scatter(dimOne, dimTwo)
-    for i, txt in enumerate(vocab):
-      ax.annotate(txt, (dimOne[i] + 0.1, dimTwo[i]))
+    ax.set_title(title)
+    ax.set_ylabel('embedding dimension')
+    ax.set_xlabel('letter')
+    letterIndices = [stats['vocab'][letter] for letter in selected]
+    dimension = []
+    value = []
+    color = []
+    for cnt, i in enumerate(letterIndices):
+        c = cnt / len(letterIndices)
+        for j in range(len(embedding[i])):
+            dimension.append(j)
+            value.append(embedding[i][j])
+            color.append(c)
+    scatter = ax.scatter(value, dimension, c=color)
+    ax.legend(handles=scatter.legend_elements()[0], labels=selected)
 
 def plot_stats(stats):
     gs_kw = dict(width_ratios=[1.5, 1], height_ratios=[1, 2])
     fig, axd = plt.subplot_mosaic([['lr', 'emb'], ['scatter', 'emb']], gridspec_kw=gs_kw, layout="constrained")
     plot_learning_rate(stats, axd['lr'])
     plot_embedding(stats, axd['emb'])
-    plot_scatter_embedding(stats, axd['scatter'])
+    # plot_selected(stats, axd['scatter'], title='Vowels', selected=['a', 'e', 'i', 'o', 'u'])
+    # plot_selected(stats, axd['scatter'], title='Consonants', selected=['b', 'c', 'd', 'f', 'g', 'h'])
+    plot_selected(stats, axd['scatter'], title='Mixed', selected=['a', 'e', 'i', 'o', 'b', 'c', 'd', 'f'])
     plt.show()
